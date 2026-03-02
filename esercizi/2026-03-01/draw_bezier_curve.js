@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 VaiTon <eyadlorenzo@gmail.com>
+//
+// SPDX-License-Identifier: MIT
+
 "use strict";
 
 ///////////////////////////////////
