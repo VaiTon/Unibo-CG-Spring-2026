@@ -1,0 +1,106 @@
+#!/usr/bin/env python3
+
+import argparse
+import os
+import shutil
+from pathlib import Path
+
+
+def generate_index_html(rel_path, subdirs, files, is_root=False, baseurl=""):
+    """Generates a clean, themed index.html for any directory."""
+    title = f"Index of /{rel_path}" if not is_root else "Project Portal"
+    home_url = baseurl.rstrip("/") + "/" if baseurl else "/"
+
+    # Navigation: Show "Back" unless we are at the absolute root
+    nav = f'<p><a href="../">⬅️ Up One Level</a> | <a href="{home_url}">🏠 Home</a></p>'
+    if is_root:
+        nav = "<p>Welcome to the project repository.</p>"
+
+    # Build the list items
+    items = []
+
+    # 1. Add directories (Folder icon)
+    for d in sorted(subdirs):
+        if d.startswith("."):
+            continue
+        items.append(f'<li><strong>📁 <a href="./{d}/">{d}/</a></strong></li>')
+
+    # 2. Add files (File icon)
+    for f in sorted(files):
+        if f == "index.html" or f.startswith("."):
+            continue
+        items.append(f'<li>📄 <a href="./{f}">{f}</a></li>')
+
+    content = "\n".join(items)
+
+    return f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/water.css@2/out/water.css">
+    <title>{title}</title>
+</head>
+<body>
+    <h1>{title}</h1>
+    {nav}
+    <hr>
+    <ul>
+        {content if items else "<li><em>No files found here.</em></li>"}
+    </ul>
+</body>
+</html>
+"""
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Build a directory-listing website.")
+    parser.add_argument(
+        "sources", nargs="+", help="One or more source folders to include."
+    )
+    parser.add_argument(
+        "--site", default="_site", help="The output directory (default: _site)."
+    )
+    parser.add_argument(
+        "--baseurl", default="", help="Base URL prefix for absolute links (e.g. /my-project)."
+    )
+
+    args = parser.parse_args()
+    site_dir = Path(args.site)
+
+    # 1. Clean Start
+    if site_dir.exists():
+        shutil.rmtree(site_dir)
+    site_dir.mkdir(parents=True)
+
+    # 2. Process each source root
+    for source_name in args.sources:
+        source_root = Path(source_name)
+        if not source_root.is_dir():
+            print(f"Skipping {source_name}: Not a directory.")
+            continue
+
+        for current_root, dirs, files in os.walk(source_root):
+            # Mirror the structure: source/sub/ -> _site/source/sub/
+            rel_path = Path(current_root)
+            dest_path = site_dir / rel_path
+            dest_path.mkdir(parents=True, exist_ok=True)
+
+            # Copy files to the mirrored destination
+            for file_name in files:
+                shutil.copy2(rel_path / file_name, dest_path / file_name)
+
+            # Create the index.html for this specific subfolder
+            with open(dest_path / "index.html", "w", encoding="utf-8") as f:
+                f.write(generate_index_html(rel_path, dirs, files, baseurl=args.baseurl))
+
+    # 3. Create the Master Portal at the very root of --site
+    # This lists the main entry points (e.g., /esercizi, /scripts)
+    root_dirs = [d for d in args.sources if Path(d).is_dir()]
+    with open(site_dir / "index.html", "w", encoding="utf-8") as f:
+        f.write(generate_index_html("Root", root_dirs, [], is_root=True, baseurl=args.baseurl))
+
+    print(f"✅ Website successfully built in: {site_dir.resolve()}")
+
+
+if __name__ == "__main__":
+    main()
